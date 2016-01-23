@@ -5,6 +5,42 @@
     $dns_queries_today = $outj->dns_queries_today;
     $ads_blocked_today = $outj->ads_blocked_today;
     $ads_percentage_today = $outj->ads_percentage_today;
+
+    // Credentials for accessing the DB, which stores the historical stats from the Pi-hole
+    // Some scripts in the Pi-hole repo will be necessary for this to work properly
+    $db_host = "localhost";
+    $db_user = "root";
+    $db_pass = "raspberry";
+    $db_name = "charts";
+
+    // Connect to the DB
+    $db_conn = mysqli_connect($db_host, $db_user,$db_pass, $db_name) or die('Could not connect: ' . mysql_error());
+
+    $sql_pie_chart_stats = "SELECT query_cnt AS q_cnt, adver_cnt AS a_cnt FROM pie_chart_stats WHERE insert_date = '0000-00-00'";
+    if ($res_pie_chart_stats = mysqli_query($db_conn, $sql_pie_chart_stats)) {
+            $arr_pie_chart_stats = mysqli_fetch_array($res_pie_chart_stats);
+            $total_query = $arr_pie_chart_stats['q_cnt'];
+            $total_adver = $arr_pie_chart_stats['a_cnt'];
+    }else{
+            die("SQL query failed: $sql_pie_chart_stats: ". mysql_error());
+    }
+
+    $arr_top_adver = '[';
+    $arr_top_count = '[';
+    $sql_top_chart_stats = "SELECT DISTINCT adver_name AS a_name, SUM(cnt) AS count FROM top_chart_stats GROUP BY 1 ORDER BY 2 DESC LIMIT 10";
+    if ($res_top_chart_stats = mysqli_query($db_conn, $sql_top_chart_stats)) {
+            while ($row = mysqli_fetch_array($res_top_chart_stats)) {
+                    $arr_top_adver .= "'".$row['a_name']."',";
+                    $arr_top_count .= $row['count'].',';
+            }
+    }else{
+            die("SQL query failed: $sql_top_chart_stats: ". mysql_error());
+    }
+    $arr_top_adver = substr($arr_top_adver, 0, -1).']';
+    $arr_top_count = substr($arr_top_count, 0, -1).']';
+
+    // Close the DB
+    mysqli_close($db_conn);
 ?>
 <!DOCTYPE html>
 <html>
@@ -181,8 +217,37 @@
                         <!-- ./col -->
                     </div>
                     <!-- /.row -->
-                </section>
-                <!-- /.content -->
+                    <div class="row">
+                      <div class="col-md-12">
+                        <div class="box">
+                          <div class="box-header with-border">
+                            <h3 class="box-title">Historical Performance</h3>
+                          </div><!-- /.box-header -->
+                          <div class="box-body">
+                            <div class="row">
+                              <div class="col-md-8">
+                                <h2 class="text-center">
+                                  Top 10 Advertisers
+                                </h2>
+                                <div class="chart">
+                                  <!-- Top 10 Advertisers Canvas -->
+                                  <canvas id="top10"></canvas>
+                                </div><!-- /.chart-responsive -->
+                              </div><!-- /.col -->
+                          <div class="col-md-4">
+                            <h2 class="text-center">
+                            Queries vs. Ads
+                            </h2>
+                          <!-- Queries vs. Ads Canvas -->
+                          <canvas id="pie"></canvas>
+                        </div><!-- /.col -->
+                      </div><!-- /.row -->
+                    </div><!-- ./box-body -->
+                  </div><!-- /.box -->
+                </div><!-- /.col -->
+              </div><!-- /.row -->
+            </section>
+            <!-- /.content -->
             </div>
             <!-- /.content-wrapper -->
             <footer class="main-footer">
